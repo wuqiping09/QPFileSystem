@@ -1,4 +1,5 @@
 #include "Buf.h"
+#include<iostream>
 
 Buf::Buf()
 {
@@ -15,6 +16,7 @@ Buf::Buf()
 	b_blkno = -1;			/* 磁盘逻辑块号 */
 	b_error = 0;			/* I/O出错时信息 */
 	b_resid = 0;			/* I/O出错时尚未传送的剩余字节数 */
+	//std::cout << "Calling Buf()" << std::endl;
 }
 
 Buf::~Buf()

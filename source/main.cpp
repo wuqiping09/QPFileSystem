@@ -11,158 +11,6 @@
 
 using namespace std;
 
-void readFromDisk(string filename)
-{
-	ofstream outfile(filename);
-	if (!outfile.is_open())
-	{
-		cerr << filename << " open error!" << endl;
-		return;
-	}
-	ifstream myDisk("myDisk.img");
-	if (!myDisk.is_open())
-	{
-		cerr << "myDisk open error!" << endl;
-		outfile.close();
-		return;
-	}
-	int block_num = 40;//read from 40# block
-	myDisk.seekg(block_num*512, ios::beg);
-	char ch = myDisk.get();
-	while (ch != EOF)
-	{
-		//cout << ch;
-		outfile.put(ch);
-		ch = myDisk.get();
-	}
-	myDisk.close();
-	outfile.close();
-}
-
-void writeToDisk(string filename)
-{
-	ifstream infile(filename);
-	if (!infile.is_open())
-	{
-		cerr << filename << " open error!" << endl;
-		return;
-	}
-	ofstream myDisk("myDisk.img");
-	if (!myDisk.is_open())
-	{
-		cerr << "myDisk open error!" << endl;
-		infile.close();
-		return;
-	}
-	int block_num = 40;//write to 40# block
-	myDisk.seekp(block_num*512, ios::beg);
-	char ch = infile.get();
-	while (ch != EOF)
-	{
-		//cout << ch;
-		myDisk.put(ch);
-		ch = infile.get();
-	}
-	myDisk.close();
-	infile.close();
-}
-
-void tryExample()
-{
-	writeToDisk("example.txt");
-	readFromDisk("example1.txt");
-}
-
-class A
-{
-public:
-	int a;
-	int b;
-	A() { a = -2; b = -1; }
-};
-
-void tryMmapWrite()
-{
-	int FILE_SIZE = 1024 * 1024 * 1024;
-	HANDLE hf = fopen("test_mmap.img","r+");
-	cout << GetLastError() << endl;//试图移动文件指针到文件开头之前
-	HANDLE hMapFile = CreateFileMapping(hf, NULL, PAGE_READWRITE, 0, FILE_SIZE, "test_mmap");
-	cout << GetLastError() << endl;//句柄无效
-	LPVOID lpBase = MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, FILE_SIZE);
-	//int error = GetLastError();
-	A start;
-	memcpy((A*)lpBase + 512 * 40, &start, sizeof(A));//write into the 40# block
-	UnmapViewOfFile(lpBase);
-	CloseHandle(hMapFile);
-}
-
-void tryMmapRead()
-{
-	int FILE_SIZE = 1024 * 1024 * 1024;
-	//HANDLE hf = fopen("test_mmap.img", "r+");
-	HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, FILE_SIZE, "test_mmap");
-	LPVOID lpBase = MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, FILE_SIZE);
-	A *start = (A *)malloc(sizeof(A));
-	memcpy(start, (A*)lpBase + 512 * 40, sizeof(A));//read from the 40# block
-	cout << start->a << " " << start->b << endl;
-	UnmapViewOfFile(lpBase);
-	CloseHandle(hMapFile);
-}
-
-void tryBinaryWrite()
-{
-	A a;
-	ofstream outfile;
-	outfile.open("test_binary.img", ios::out | ios::_Nocreate | ios::binary);
-	if (!outfile.is_open())
-	{
-		cerr << "test_binary.img open error!" << endl;
-		return;
-	}
-	outfile.seekp(512 * 40, ios::beg);//write into the 40# block
-	outfile.write((char*)&a, sizeof(A));
-	outfile.close();
-}
-
-void tryBinaryRead()
-{
-	A a;
-	ifstream infile;
-	infile.open("test_binary.img", ios::in | ios::binary);
-	if (!infile.is_open())
-	{
-		cerr << "test_binary.img open error!" << endl;
-		return;
-	}
-	infile.seekg(512 * 40, ios::beg);//read from the 40# block
-	infile.read((char*)&a, sizeof(A));
-	cout << a.a << "   " << a.b << endl;
-	infile.close();
-}
-
-void tryfstream()
-{
-	fstream outfile("test_fstream.txt", ios::in | ios::out | ios::_Nocreate | ios::binary);
-	outfile.seekp(50, ios::beg);
-	outfile << "second output" << endl;
-	outfile.close();
-	ifstream infile("test_fstream4.txt", ios::in | ios::out | ios::_Nocreate | ios::binary);
-	infile.close();
-}
-
-enum Operator
-{
-	help,			//显示帮助
-	format,			//格式化磁盘
-	load,			//将磁盘中的文件读到主机中
-	store,			//将主机中的文件存入磁盘
-	rm,				//在磁盘中删除文件
-	create,			//在磁盘中新建文件
-	read,			//读出磁盘中的文件内容
-	write,			//向文件中写入内容
-	lseek			//定位到文件中的某位置
-};
-
 //按空格分割字符串，得到operator和parameter
 vector<string> stringSplit(string command)
 {
@@ -199,17 +47,17 @@ int stringToInt(string s)
 void showHelp()
 {
 	cout << "命令说明如下：" << endl;
-	cout << "help									查看命令说明" << endl;
-	cout << "format									格式化myDisk.img" << endl;
-	cout << "load <filename>						将myDisk.img中名为filename的文件读到主机中" << endl;
-	cout << "store <filename_out> <filename_in>		将主机中名为filename_out的文件存入myDisk.img，名为filename_in" << endl;
-	cout << "rm <filename>							在myDisk.img中删除名为filename的文件" << endl;
-	cout << "create <filename>						在myDisk.img中新建文件，名为filename" << endl;
-	cout << "mkdir <dir>							在myDisk.img中新建目录文件，路径为dir" << endl;
-	//cout << "read <filename>						  读出磁盘中的文件内容" << endl;
-	//cout << "write <filename> <str>				  向文件中写入内容" << endl;
-	//cout << "lseek <filename> <offset>			  定位到文件中的某位置" << endl;
-	cout << "shutdown								退出QIPING文件系统" << endl;
+	cout << "help                                               " << "查看命令说明" << endl;
+	cout << "format                                             " << "格式化myDisk.img" << endl;
+	cout << "load <filename>                                    " << "将myDisk.img中名为filename的文件读到主机中" << endl;
+	cout << "store <filename_out> <filename_in>                 " << "将主机中名为filename_out的文件存入myDisk.img，名为filename_in" << endl;									  	         
+	cout << "rm <filename>                                      " << "在myDisk.img中删除名为filename的文件" << endl;
+	cout << "create <filename>                                  " << "在myDisk.img中新建文件，名为filename" << endl;
+	cout << "mkdir <dir>                                        " << "在myDisk.img中新建目录文件，路径为dir" << endl;
+	cout << "read <filename>                                    " << "读出磁盘中名为filename的文件内容" << endl;
+	cout << "write <filename> <str>                             " << "向文件中写入str" << endl;
+	cout << "shutdown                                           " << "退出QIPING文件系统" << endl;
+	cout << "警告：若强制终止程序可能导致缓存数据丢失！" << endl;
 }
 
 //启动文件系统，进入命令行模式
@@ -368,7 +216,7 @@ void startSystem()
 					}
 				}
 			}
-			/*else if (v[0] == "read")
+			else if (v[0] == "read")
 			{
 				if (v.size() != 2)
 				{
@@ -376,7 +224,16 @@ void startSystem()
 				}
 				else
 				{
-					FM->read(v[1]);
+					cout << "正在读入文件..." << endl;
+					int rr = FM->read(v[1]);
+					if (rr == 0)
+					{
+						cout << "读入文件成功" << endl;
+					}
+					else
+					{
+						cout << "读入文件失败" << endl;
+					}
 				}
 			}
 			else if (v[0] == "write")
@@ -387,28 +244,18 @@ void startSystem()
 				}
 				else
 				{
-					FM->write(v[1], v[2]);
-				}
-			}
-			else if (v[0] == "lseek")
-			{
-				if (v.size() != 3)
-				{
-					cout << "参数个数错误!" << endl;
-				}
-				else
-				{
-					int offset = stringToInt(v[2]);
-					if (offset == -1)
+					cout << "正在写入文件..." << endl;
+					int rw = FM->write(v[1], v[2]);
+					if (rw == 0)
 					{
-						cout << "offset错误" << endl;
+						cout << "写入文件成功" << endl;
 					}
 					else
 					{
-						FM->lseek(v[1], offset);
+						cout << "写入文件失败" << endl;
 					}
 				}
-			}*/
+			}
 			else
 			{
 				cout << "指令错误!" << endl;
@@ -417,6 +264,7 @@ void startSystem()
 		cout << ">>>";
 		getline(cin, command);
 	}
+	FM->update();//将延迟写内容刷入磁盘
 	delete FM;
 	cout << "成功退出QIPING文件系统" << endl;
 }

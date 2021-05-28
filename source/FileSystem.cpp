@@ -1,5 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "FileSystem.h"
 #include "DirectoryEntry.h"
+#include "BufferManager.h"
 #include<fstream>
 #include<iostream>
 #include<algorithm>
@@ -9,6 +11,11 @@ FileSystem::FileSystem()
 {
 	this->m_BufferManager = new BufferManager();
 	this->updlock = 0;
+	for (int i = 0; i < 80; ++i)
+	{
+		disk_inodes[i] = nullptr;
+	}
+	this->Initialize();
 }
 
 FileSystem::~FileSystem()
@@ -490,17 +497,15 @@ void FileSystem::loadBlock(int block_no, int length, ifstream& infile, ofstream&
 		{
 			int offset = i * 32;
 			int j = offset;
-			bool name_over = false;
 			for (; j < offset + 28; ++j)//文件名
 			{
-				if (data[j] != '\0' && !name_over)
+				if (data[j] != '\0')
 				{
 					outfile.put(data[j]);
 				}
-				else//补空格
+				else
 				{
-					name_over = true;
-					outfile.put(' ');
+					break;
 				}
 			}
 			outfile << endl;
@@ -511,6 +516,77 @@ void FileSystem::loadBlock(int block_no, int length, ifstream& infile, ofstream&
 		outfile.write((char*)data, length);
 	}
 	delete data;
+}
+
+//读入一个数据块输出到屏幕
+void FileSystem::loadBlock(int block_no, int length, ifstream& infile, bool is_dir)
+{
+	char *data = new char[length];
+	//先读入到data中
+	loadBlock(block_no, length, infile, data);
+	//再写入到outfile中
+	if (is_dir)//是目录文件，只显示目录项中的文件名
+	{
+		int num_de = length / sizeof(DirectoryEntry);//目录项个数
+		for (int i = 0; i < num_de; ++i)
+		{
+			int offset = i * 32;
+			int j = offset;
+			for (; j < offset + 28; ++j)//文件名
+			{
+				if (data[j] != '\0')
+				{
+					cout << data[j];
+				}
+				else
+				{
+					break;
+				}
+			}
+			cout << endl;
+		}
+	}
+	else//普通文件，内容全部写入文件
+	{
+		for (int i = 0; i < length; ++i)
+		{
+			cout << data[i];
+		}
+	}
+	delete data;
+}
+
+//缓存数据输出到屏幕
+void FileSystem::displayBufferData(Buf* bp, int length, bool is_dir)
+{
+	if (is_dir)
+	{
+		int num_de = length / sizeof(DirectoryEntry);//目录项个数
+		for (int i = 0; i < num_de; ++i)
+		{
+			int offset = i * 32;
+			int j = offset;
+			for (; j < offset + 28; ++j)//文件名
+			{
+				if (*(bp->b_addr+j) != '\0')
+				{
+					cout << *(bp->b_addr + j);
+				}
+				else
+				{
+					break;
+				}
+			}
+			cout << endl;
+		}
+	}
+	else
+	{
+		for (int i = 0; i < length; ++i)
+		{
+			cout << *(bp->b_addr + i);
+		}
+	}
 }
 
 //从文件写入一个数据块
@@ -549,9 +625,9 @@ int FileSystem::loadFile(int no_diskinode, string file_name)
 	}
 	//先获取DiskInode
 	DiskInode *di = new DiskInode();
-	infile.seekg(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + no_diskinode * 64, ios::beg);
+	infile.seekg(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + no_diskinode * sizeof(DiskInode), ios::beg);
 	infile.read((char*)di, sizeof(DiskInode));
-	bool is_dir = (di->d_mode&DiskInode::IDIR) == 0 ? false : true;
+	bool is_dir = (di->d_mode&DiskInode::IDIR) == 0 ? false : true;//是否是目录文件
 	//读数据块
 	int len_read = 0;//已读文件长度
 	int file_length = di->d_size;//文件长度
@@ -1193,4 +1269,222 @@ int FileSystem::removeFile(int no_diskinode, int no_fdiskinode)
 	delete di;
 	inoutfile.close();
 	return 0;
+}
+
+//从myDisk.img读入文件，或直接从缓存块中读出
+int FileSystem::readFile(int no_diskinode)
+{
+	ifstream infile("myDisk.img", ios::in | ios::binary);
+	if (!infile.is_open())
+	{
+		cerr << "myDisk.img open error!" << endl;
+		return -1;
+	}
+	//先获取DiskInode
+	DiskInode *di = disk_inodes[no_diskinode];
+	if (disk_inodes[no_diskinode] == nullptr)
+	{
+		di = new DiskInode();
+		infile.seekg(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + no_diskinode * sizeof(DiskInode), ios::beg);
+		infile.read((char*)di, sizeof(DiskInode));
+	}
+	bool is_dir = (di->d_mode&DiskInode::IDIR) == 0 ? false : true;//是否是目录文件
+	int file_length = di->d_size;//文件长度
+	int len_read = 0;//已读长度
+	int cur_addr = 0;//从d_addr[0]开始读
+	int num_block = file_length / Inode::BLOCK_SIZE + 1;//需要多少数据块
+	int num_block_read = 0;//已读数据块个数
+	int num_buf = file_length / BufferManager::BUFFER_SIZE + 1;//需要的缓存块的个数
+	while (len_read < file_length)//没读完
+	{
+		//获取当前数据块
+		int cur_block_no = di->d_addr[cur_addr];
+		if (cur_addr > 7)//二级索引
+		{
+			//读出此索引块
+			int index_blocks_no[Inode::BLOCK_SIZE / 4];
+			int num_index1_to_read = min(Inode::BLOCK_SIZE / 4, (num_block - num_block_read) / (Inode::BLOCK_SIZE / 4) + 1);//此次需要读的一级索引个数
+			infile.seekg((DATA_ZONE_START_SECTOR + cur_block_no - 1)*Inode::BLOCK_SIZE, ios::beg);
+			infile.read((char*)index_blocks_no, num_index1_to_read * 4);
+			for (int i = 0; i < num_index1_to_read; ++i)
+			{
+				//读出一级索引块
+				int blocks_no[Inode::BLOCK_SIZE];
+				int num_block_to_read = min(Inode::BLOCK_SIZE / 4, num_block - num_block_read);//此次需要读的磁盘块个数
+				infile.seekg((DATA_ZONE_START_SECTOR + index_blocks_no[i] - 1)*Inode::BLOCK_SIZE, ios::beg);
+				infile.read((char*)blocks_no, num_block_to_read * 4);
+				//读每个数据块
+				for (int j = 0; j < num_block_to_read; ++j)
+				{
+					int len_to_read = min(Inode::BLOCK_SIZE, file_length - len_read);
+					if (num_buf <= BufferManager::NBUF)//缓存区够用
+					{
+						//读入到缓存块
+						Buf *bp = m_BufferManager->Bread(blocks_no[j], len_to_read);
+						//输出到屏幕
+						displayBufferData(bp, len_to_read, is_dir);
+					}
+					else
+					{
+						//直接输出到屏幕
+						loadBlock(blocks_no[j], len_to_read, infile, is_dir);
+					}
+					len_read += len_to_read;
+					++num_block_read;
+				}
+			}
+			++cur_addr;//下一个d_addr
+		}
+		else if (cur_addr > 5)//一级索引
+		{
+			//读出此索引块
+			int blocks_no[Inode::BLOCK_SIZE / 4];
+			int num_block_to_read = min(Inode::BLOCK_SIZE / 4, num_block - num_block_read);
+			infile.seekg((DATA_ZONE_START_SECTOR + cur_block_no - 1)*Inode::BLOCK_SIZE, ios::beg);
+			infile.read((char*)blocks_no, num_block_to_read * 4);
+			//读每个数据块
+			for (int i = 0; i < num_block_to_read; ++i)
+			{
+				int len_to_read = min(Inode::BLOCK_SIZE, file_length - len_read);
+				if (num_buf <= BufferManager::NBUF)//缓存区够用
+				{
+					//读入到缓存块
+					Buf *bp = m_BufferManager->Bread(blocks_no[i], len_to_read);
+					//输出到屏幕
+					displayBufferData(bp, len_to_read, is_dir);
+				}
+				else
+				{
+					//直接输出到屏幕
+					loadBlock(blocks_no[i], len_to_read, infile, is_dir);
+				}
+				len_read += len_to_read;
+				++num_block_read;
+			}
+			++cur_addr;//下一个d_addr
+		}
+		else//直接索引
+		{
+			int len_to_read = min(Inode::BLOCK_SIZE, file_length - len_read);
+			if (num_buf <= BufferManager::NBUF)//缓存区够用
+			{
+				//读入到缓存块
+				Buf *bp = m_BufferManager->Bread(cur_block_no, len_to_read);
+				//输出到屏幕
+				displayBufferData(bp, len_to_read, is_dir);
+			}
+			else
+			{
+				//直接输出到屏幕
+				loadBlock(cur_block_no, len_to_read, infile, is_dir);
+			}
+			len_read += len_to_read;
+			++num_block_read;
+			++cur_addr;//下一个d_addr
+		}
+	}
+	if (disk_inodes[no_diskinode] == nullptr)
+	{
+		delete di;
+	}
+	infile.close();
+	cout << endl;
+	return 0;
+}
+
+//将字符串写入缓存或文件
+int FileSystem::writeFile(int no_diskinode, std::string str)
+{
+	/* 假设str的长度不超过512*6字节，因此不需要索引块，且缓存区足够存下，因此一定延迟写 */
+	int length = str.size();
+	int num_block = length / Inode::BLOCK_SIZE + 1;//需要的盘块数
+	//int num_buf = length / BufferManager::BUFFER_SIZE + 1;//需要的缓存块数
+	/* 先获取num_block-1个盘块 */
+	vector<int>blocks_no;
+	for (int i = 0; i < num_block - 1; ++i)
+	{
+		int block_no = alloc();
+		if (block_no == 0)//没有足够的磁盘块
+		{
+			//释放已经分配的磁盘块
+			int n = blocks_no.size();
+			for (int j = 0; j < n; ++j)
+			{
+				free(blocks_no[j]);
+			}
+			return 1;
+		}
+		blocks_no.emplace_back(block_no);
+	}
+	ifstream infile("myDisk.img", ios::in | ios::binary);
+	if (!infile.is_open())
+	{
+		cerr << "myDisk.img open error!" << endl;
+		return -1;
+	}
+	/* 先获取DiskInode */
+	DiskInode *di = disk_inodes[no_diskinode];
+	if (disk_inodes[no_diskinode] == nullptr)
+	{
+		di = new DiskInode();
+		infile.seekg(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + no_diskinode * sizeof(DiskInode), ios::beg);
+		infile.read((char*)di, sizeof(DiskInode));
+	}
+	/* 登记磁盘块 */
+	for (int i = 0; i < num_block - 1; ++i)
+	{
+		di->d_addr[i + 1] = blocks_no[i];
+	}
+	/* 更新文件长度 */
+	di->d_size = length;
+	/* 写回DiskInode */
+	//inoutfile.seekp(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + no_diskinode * sizeof(DiskInode), ios::beg);
+	//inoutfile.write((char*)di, sizeof(DiskInode));
+	infile.close();
+	/* 暂存DiskInode，shutdown时存入磁盘 */
+	disk_inodes[no_diskinode] = di;
+	int len_write = 0;//已写长度
+	Buf *bp = this->m_BufferManager->GetBlk(di->d_addr[0]);//第一个缓存块
+	/* 写入数据到缓存块 */
+	int len_to_write = min(BufferManager::BUFFER_SIZE, length - len_write);//此次需要写的长度
+	bp->b_wcount = len_to_write;
+	strcpy((char*)bp->b_addr, str.substr(len_write, len_to_write).c_str());
+	this->m_BufferManager->Bdwrite(bp);//延迟写
+	len_write += len_to_write;
+	for (int i = 0; i < num_block - 1; ++i)
+	{
+		bp = this->m_BufferManager->GetBlk(blocks_no[i]);
+		/* 写入数据到缓存块 */
+		len_to_write = min(BufferManager::BUFFER_SIZE, length - len_write);//此次需要写的长度
+		bp->b_wcount = len_to_write;
+		strcpy((char*)bp->b_addr, str.substr(len_write, len_to_write).c_str());
+		this->m_BufferManager->Bdwrite(bp);//延迟写
+		len_write += len_to_write;
+	}
+	//delete di;
+	return 0;
+}
+
+//将延迟写的数据写回磁盘
+void FileSystem::updateFile()
+{
+	this->m_BufferManager->Bflush();
+	//存入DiskInode
+	ofstream outfile("myDisk.img", ios::out | ios::_Nocreate | ios::binary);
+	if (!outfile.is_open())
+	{
+		cerr << "myDisk.img open error!" << endl;
+		return;
+	}
+	for (int i = 0; i < 80; ++i)
+	{
+		if (disk_inodes[i] != nullptr)
+		{
+			outfile.seekp(INODE_ZONE_START_SECTOR*Inode::BLOCK_SIZE + i * sizeof(DiskInode), ios::beg);
+			outfile.write((char*)disk_inodes[i], sizeof(DiskInode));
+			delete disk_inodes[i];
+			disk_inodes[i] = nullptr;
+		}
+	}
+	outfile.close();
 }

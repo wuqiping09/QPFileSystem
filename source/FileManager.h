@@ -43,11 +43,12 @@ public:
 
 	int mkdir(std::string dir);
 
-	void read(std::string file_name);
+	int read(std::string file_name);
 
-	void write(std::string file_name, std::string s);
+	int write(std::string file_name, std::string s);
 
-	void lseek(std::string file_name, int offset);
+	//将缓存区的延迟写数据写入磁盘
+	void update();
 
 	//切分路径
 	std::vector<std::string> pathSplit(std::string file_name);
@@ -58,129 +59,129 @@ public:
 	/*
 	 * @comment Open()系统调用处理过程
 	 */
-	void Open();
+	//void Open();
 
 	/*
 	 * @comment Creat()系统调用处理过程
 	 */
-	void Creat();
+	//void Creat();
 
 	/*
 	 * @comment Open()、Creat()系统调用的公共部分
 	 */
-	void Open1(Inode* pInode, int mode, int trf);
+	//void Open1(Inode* pInode, int mode, int trf);
 
 	/*
 	 * @comment Close()系统调用处理过程
 	 */
-	void Close();
+	//void Close();
 
 	/*
 	 * @comment Seek()系统调用处理过程
 	 */
-	void Seek();
+	//void Seek();
 
 	/*
 	 * @comment Dup()复制进程打开文件描述符
 	 */
-	void Dup();
+	//void Dup();
 
 	/*
 	 * @comment FStat()获取文件信息
 	 */
-	void FStat();
+	//void FStat();
 
 	/*
 	 * @comment FStat()获取文件信息
 	 */
-	void Stat();
+	//void Stat();
 
 	/* FStat()和Stat()系统调用的共享例程 */
-	void Stat1(Inode* pInode, unsigned long statBuf);
+	//void Stat1(Inode* pInode, unsigned long statBuf);
 
 	/*
 	 * @comment Read()系统调用处理过程
 	 */
-	void Read();
+	//void Read();
 
 	/*
 	 * @comment Write()系统调用处理过程
 	 */
-	void Write();
+	//void Write();
 
 	/*
 	 * @comment 读写系统调用公共部分代码
 	 */
-	void Rdwr(enum File::FileFlags mode);
+	//void Rdwr(enum File::FileFlags mode);
 
 	/*
 	 * @comment Pipe()管道建立系统调用处理过程
 	 */
-	void Pipe();
+	//void Pipe();
 
 	/*
 	 * @comment 管道读操作
 	 */
-	void ReadP(File* pFile);
+	//void ReadP(File* pFile);
 
 	/*
 	 * @comment 管道写操作
 	 */
-	void WriteP(File* pFile);
+	//void WriteP(File* pFile);
 
 	/*
 	 * @comment 目录搜索，将路径转化为相应的Inode，
 	 * 返回上锁后的Inode
 	 */
-	Inode* NameI(char(*func)(), enum DirectorySearchMode mode);
+	//Inode* NameI(char(*func)(), enum DirectorySearchMode mode);
 
 	/*
 	 * @comment 获取路径中的下一个字符
 	 */
-	static char NextChar();
+	//static char NextChar();
 
 	/*
 	 * @comment 被Creat()系统调用使用，用于为创建新文件分配内核资源
 	 */
-	Inode* MakNode(unsigned int mode);
+	//Inode* MakNode(unsigned int mode);
 
 	/*
 	 * @comment 向父目录的目录文件写入一个目录项
 	 */
-	void WriteDir(Inode* pInode);
+	//void WriteDir(Inode* pInode);
 
 	/*
 	 * @comment 设置当前工作路径
 	 */
-	void SetCurDir(char* pathname);
+	//void SetCurDir(char* pathname);
 
 	/*
 	 * @comment 检查对文件或目录的搜索、访问权限，作为系统调用的辅助函数
 	 */
-	int Access(Inode* pInode, unsigned int mode);
+	//int Access(Inode* pInode, unsigned int mode);
 
 	/*
 	 * @comment 检查文件是否属于当前用户
 	 */
-	Inode* Owner();
+	//Inode* Owner();
 
 	/* 改变文件访问模式 */
-	void ChMod();
+	//void ChMod();
 
 	/* 改变文件文件所有者user ID及其group ID */
-	void ChOwn();
+	//void ChOwn();
 
 	/* 改变当前工作目录 */
-	void ChDir();
+	//void ChDir();
 
 	/* 创建文件的异名引用 */
-	void Link();
+	//void Link();
 
 	/* 取消文件 */
-	void UnLink();
+	//void UnLink();
 
 	/* 用于建立特殊设备文件的系统调用 */
-	void MkNod();
+	//void MkNod();
 
 public:
 	/* 根目录内存Inode */

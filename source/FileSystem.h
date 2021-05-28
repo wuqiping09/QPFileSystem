@@ -73,6 +73,12 @@ public:
 	//读入一个数据块到文件
 	void loadBlock(int block_no, int length, std::ifstream& infile, std::ofstream& outfile, bool isDir);
 
+	//读入一个数据块输出到屏幕
+	void loadBlock(int block_no, int length, std::ifstream& infile, bool is_dir);
+
+	//缓存数据输出到屏幕
+	void displayBufferData(Buf* bp, int length, bool is_dir);
+
 	//从文件写入一个数据块
 	void storeBlock(int block_no, int length, std::fstream& inoutfile, std::ifstream& infile);
 
@@ -93,6 +99,15 @@ public:
 
 	//删除文件
 	int removeFile(int no_diskinode, int no_fdiskinode);
+
+	//从myDisk.img读入文件，或直接从缓存块中读出
+	int readFile(int no_diskinode);
+
+	//将字符串写入缓存或文件
+	int writeFile(int no_diskinode, std::string str);
+
+	//将延迟写的数据写回磁盘
+	void updateFile();
 
 	/*
 	 * @comment 根据文件存储设备的设备号dev获取
@@ -138,7 +153,7 @@ private:
 	 * @comment 检查设备dev上编号blkno的磁盘块是否属于
 	 * 数据盘块区
 	 */
-	bool BadBlock(SuperBlock* spb, short dev, int blkno);
+	//bool BadBlock(SuperBlock* spb, short dev, int blkno);
 
 	/* Members */
 public:
@@ -148,4 +163,5 @@ private:
 	BufferManager* m_BufferManager;		/* FileSystem类需要缓存管理模块(BufferManager)提供的接口 */
 	int updlock;				/* Update()函数的锁，该函数用于同步内存各个SuperBlock副本以及，
 								被修改过的内存Inode。任一时刻只允许一个进程调用该函数 */
+	DiskInode* disk_inodes[80];
 };

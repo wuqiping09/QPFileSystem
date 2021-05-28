@@ -172,19 +172,65 @@ int FileManager::mkdir(string dir)
 	return r;
 }
 
-void FileManager::read(string file_name)
+int FileManager::read(string file_name)
 {
-	//return 0;
+	vector<string>path = pathSplit(file_name);
+	if (path.size() == 0)
+	{
+		cout << "file_name参数错误" << endl;
+		return -1;
+	}
+	int no_di = this->m_FileSystem->getDiskInode(path);
+	if (no_di == 0)
+	{
+		cout << "未找到该文件" << endl;
+		return 1;
+	}
+	return this->m_FileSystem->readFile(no_di);
 }
 
-void FileManager::write(string file_name, string s)
+int FileManager::write(string file_name, string s)
 {
-
+	vector<string>path = pathSplit(file_name);
+	if (path.size() <= 1)
+	{
+		cout << "file_name参数错误" << endl;
+		return -1;
+	}
+	int no_di = this->m_FileSystem->getDiskInode(path);
+	if (no_di == 0)
+	{
+		cout << "此文件不存在" << endl;
+		return -1;
+	}
+	////先将其删除
+	//int rrm = this->rm(file_name);
+	//if (rrm != 0)
+	//{
+	//	cout << "删除文件时出错" << endl;
+	//	return -1;
+	//}
+	////再新建一个空文件
+	//int rc = this->create(file_name);
+	//if (rc != 0)
+	//{
+	//	cout << "新建文件时出错" << endl;
+	//	return -1;
+	//}
+	//no_di = this->m_FileSystem->getDiskInode(path);
+	//再写入内容
+	int rw = this->m_FileSystem->writeFile(no_di, s);
+	if (rw == 1)
+	{
+		cout << "myDisk.img空间不足" << endl;
+	}
+	return rw;
 }
 
-void FileManager::lseek(string file_name, int offset)
+//将缓存区的延迟写数据写入磁盘
+void FileManager::update()
 {
-
+	this->m_FileSystem->updateFile();
 }
 
 //切分路径
