@@ -1,92 +1,101 @@
-# 基于Unix v6++的文件系统  
-本文件系统为二级文件系统，磁盘名为"myDisk.img"，是宿主机中的一个大文件。本系统宿主机的操作系统为Windows10。  
+# A File System based on Unix V6++  
+This file system is a two-level file system. The name of the disk is "myDisk.img", which is a big file in the host machine. The operating system of the host machine is  Windows 10.  
 
-## 编译说明  
-使用MSVC进行编译。在命令行窗口中进入source文件夹，执行nmake。  
-而后会自动生成所有的.obj文件和.exe文件。  
-使用nmake clean清楚所有.obj文件和.exe文件。  
+## Compile Instruction  
+Compile with MSVC.  
+In command line window, enter source folder, and execute nmake.  
+```
+>>>cd source
+>>>nmake
+```
+All .obj files and .exe files will be created.  
+Delete all .obj files and .exe files with nmake clean.  
+```
+>>>nmake clean
+```
 
-## 操作说明  
-所有操作均通过命令行进行。  
-启动main.exe文件，进入命令行模式。  
+## File System Instruction  
+All operations should be executed by command line.  
+Run main.exe to start command line mode.   
 1. format  
-格式化myDisk.img。  
-参数：无。  
-例：  
+Format "myDisk.img".  
+No parameter.  
+eg.  
 ```
 >>>format
 ```
 ---
-2. mkdir < dir >  
-新建目录文件。  
-参数：
-- dir---目录文件路径  
-例：在home目录下新建texts目录文件。  
+2. mkdir \<dir>  
+Create a folder.  
+parameters:
+- dir---the path of the folder  
+eg. Create folder "text" under "/home".  
 ```
 >>>mkdir /home/texts
 ```
 ---
-3. create < filename >  
-新建文件。  
-参数：
-- filename---文件名（包括路径）  
-例：在etc目录下新建1.txt文件。  
+3. create \<filename>  
+Create a new file.  
+parameters:
+- filename---the name of the file(include path)  
+eg. Create file "1.txt" under "/etc".  
 ```
 >>>create /etc/1.txt
 ```
 ---
-4. rm < filename >  
-删除文件或目录文件。  
-参数：
-- filename---文件名（包括路径）或路径。  
-例：删除etc目录下的1.txt文件和dev目录。   
+4. rm \<filename>  
+Delete a file or a folder.  
+parameters:
+- filename---the name of a file or a folder(include path)  
+eg. Delete file "1.txt" under "/etc". Delete folder "dev" under "/".  
 ```
 >>>rm /etc/1.txt
 >>>rm /dev
 ```
 ---
-5. read < filename >  
-读文件或目录文件。  
-参数：
-- filename---文件名（包括路径）或路径。  
-例：读etc目录下的1.txt文件和根目录。  
+5. read \<filename>  
+Read the content of a file or the directory items of a folder.  
+parameters:
+- filename---the name of the file or the folder(include path)  
+eg. Read the content of file "1.txt" under "/etc". Read the directory items of root folder.  
 ```
 >>>read /etc/1.txt
 >>>read /
 ```
 ---
-6. write  
-写文件。此处为延迟写。  
-参数：
-- filename---文件名（包括路径）。  
-- str---需要写入的字符串（不能包含空格）。  
-例：向etc目录下的1.txt文件中写入"abc"。  
+6. write \<filename> \<str>  
+Write(delay write) content into a file.  
+parameters:
+- filename---the name of the file(include path)  
+- str---the content to write(no space contained)  
+eg. Write "abc" into file "1.txt" under "/etc".  
 ```
 >>>write /etc/1.txt abc
 ```
 ---
-7. load < filename >  
-将myDisk.img中的文件或目录文件载入宿主机中。宿主机中的文件名为myDisk.img中的文件名（包括路径），其中‘/’用‘_’代替。    
-参数:
-- filename---文件在myDisk.img中的文件名（包括路径）。  
-例：将myDisk.img中etc目录下的1.jpg文件载入宿主机中，文件名为_etc_1.jpg。  
+7. load \<filename>  
+Load a file or the directory items of a folder from "myDisk.img" to the host machine. The name of the loaded file or folder will be the name(include path) in "myDisk.img" but replacing '/' with '\_'.  
+parameters:
+- filename---the name of the file or the folder(include path) in "myDisk.img"  
+eg. Load file "1.jpg" under "/etc" in "myDisk.img" into the host machine. The name of the loaded file is "_etc_1.jpg".
 ```
 >>>load /etc/1.jpg
 ```
 ---
-8. store < filename_out > < filename_in >  
-将宿主机中的文件存入myDisk.img中。  
-参数：
-- filename_out---宿主机中的文件名（包括路径）。
-- filename_in---myDisk.img中的文件名（包括路径）。
-例：将宿主机中的1.jpg文件存入myDisk.img中的etc目录下，名为1.jpg。
+8. store \<filename_out> \<filename_in>  
+Store a file from the host machine to "myDisk.img".  
+parameters:
+- filename_out---the name of the file(include path) in the host machine
+- filename_in---the name of the file(include path) in "myDisk.img"  
+eg. Store the file "1.jpg" in the host machine into "myDisk.img" under "/etc". The name of the stored file is "1.jpg".
 ```
 >>>store 1.jpg /etc/1.jpg
 ```
 ---
 9. shutdown  
-退出文件系统。无参数。  
-例：  
+Exit the file system.  
+No parameter.  
+eg.  
 ```
 >>>shutdown
 ```
